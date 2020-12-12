@@ -59,7 +59,7 @@
       margin: 20px 0 0 10px;
     }
 
-    @media (max-width: 400px) {
+    @media (max-width: 800px) {
       .d3map {
         display: none;
       }
@@ -69,71 +69,99 @@
   <body>
     <h1>2020 Election Vote Share</h1>
     <script type="text/javascript">
+      function range_gen(from, to, step, prec) {
+        if (typeof from == "number") {
+          var A = [from];
+          step = typeof step == "number" ? Math.abs(step) : 1;
+          if (!prec) {
+            prec = (from + step) % 1 ? String((from + step) % 1).length + 1 : 0;
+          }
+          if (from > to) {
+            while (+(from -= step).toFixed(prec) >= to)
+              A.push(+from.toFixed(prec));
+          } else {
+            while (+(from += step).toFixed(prec) <= to)
+              A.push(+from.toFixed(prec));
+          }
+          return A;
+        }
+      }
+
+      function hex(c) {
+        var s = "0123456789abcdef";
+        var i = parseInt(c);
+        if (i == 0 || isNaN(c)) return "00";
+        i = Math.round(Math.min(Math.max(0, i), 255));
+        return s.charAt((i - (i % 16)) / 16) + s.charAt(i % 16);
+      }
+
+      /* Convert an RGB triplet to a hex string */
+      function convertToHex(rgb) {
+        return hex(rgb[0]) + hex(rgb[1]) + hex(rgb[2]);
+      }
+
+      /* Remove '#' in color hex string */
+      function trim(s) {
+        return s.charAt(0) == "#" ? s.substring(1, 7) : s;
+      }
+
+      /* Convert a hex string to an RGB triplet */
+      function convertToRGB(hex) {
+        var color = [];
+        color[0] = parseInt(trim(hex).substring(0, 2), 16);
+        color[1] = parseInt(trim(hex).substring(2, 4), 16);
+        color[2] = parseInt(trim(hex).substring(4, 6), 16);
+        return color;
+      }
+
+      function generateColor(colorStart, colorEnd, colorCount) {
+        // The beginning of your gradient
+        var start = convertToRGB(colorStart);
+
+        // The end of your gradient
+        var end = convertToRGB(colorEnd);
+
+        // The number of colors to compute
+        var len = colorCount;
+
+        //Alpha blending amount
+        var alpha = 0.0;
+
+        var saida = [];
+
+        for (i = 0; i < len; i++) {
+          var c = [];
+          alpha += 1.0 / len;
+
+          c[0] = start[0] * alpha + (1 - alpha) * end[0];
+          c[1] = start[1] * alpha + (1 - alpha) * end[1];
+          c[2] = start[2] * alpha + (1 - alpha) * end[2];
+
+          saida.push(convertToHex(c));
+        }
+
+        return saida;
+      }
+
+      function won(d, dem, gop) {
+        if (d < 0) {
+          return "Democrat: " + Math.trunc(100 * dem) + "%";
+        } else {
+          return "Republican: " + Math.trunc(100 * gop) + "%";
+        }
+      }
+
       var width = 960,
         height = 600;
-      var color_domain = [
-        500,
-        1000,
-        1500,
-        2000,
-        2500,
-        3000,
-        3500,
-        4000,
-        4500,
-        5000,
-        5500,
-        6000,
-      ];
-      var ext_color_domain = [
-        0,
-        500,
-        1000,
-        1500,
-        2000,
-        2500,
-        3000,
-        3500,
-        4000,
-        4500,
-        5000,
-        5500,
-        6000,
-      ];
-      var legend_labels = [
-        "< 500",
-        "500+",
-        "1000+",
-        "1500+",
-        "2000+",
-        "2500+",
-        "3000+",
-        "3500+",
-        "4000+",
-        "4500+",
-        "5000+",
-        "5500+",
-        "6000+",
-      ];
 
-      var color = d3.scale
-        .threshold()
-        .domain(color_domain)
-        .range([
-          "#dcdcdc",
-          "#d0d6cd",
-          "#bdc9be",
-          "#aabdaf",
-          "#97b0a0",
-          "#84a491",
-          "#719782",
-          "#5e8b73",
-          "#4b7e64",
-          "#387255",
-          "#256546",
-          "#125937",
-          "#004d28",
-        ]);
+      var color_domain = range_gen(-1, 1, 0.01, 2);
+      var color_range = generateColor("#ff0000", "#0000ff", 202);
+
+      //console.log(color_range, color_domain);
+
+      var color = d3.scale.threshold().domain(color_domain).range(color_range);
+
+      var rScale = d3.scale.threshold();
 
       var div = d3
         .select("body")
@@ -156,9 +184,13 @@
       queue().defer(d3.json, "us.json").defer(d3.csv, "data.csv").await(ready);
 
       function ready(error, us, data) {
-        var pairDiffWithId = {};
-        var pairNameWithId = {};
-        var pairCentroidWithId = {};
+        var pairDiffWithId = [];
+        var pairNameWithId = [];
+        var pairCentroidWithId = [];
+        var pairTotal = [];
+        var pairPDiff = [];
+        var pairPerDem = [];
+        var pairPerGop = [];
 
         //Moves selction to front
         d3.selection.prototype.moveToFront = function () {
@@ -181,42 +213,70 @@
         data.forEach(function (d) {
           pairDiffWithId[Math.abs(d.county_fips)] = d.diff;
           pairNameWithId[Math.abs(d.county_fips)] = d.county_name;
+          pairTotal[Math.abs(d.county_fips)] = d.total_votes;
+          pairPDiff[Math.abs(d.county_fips)] = d.per_point_diff;
+          pairPerDem[Math.abs(d.county_fips)] = d.per_dem;
+          pairPerGop[Math.abs(d.county_fips)] = d.per_gop;
+          //console.log(pairTotal[Math.abs(d.county_fips)]);
         });
+
+        var sliceTotalVotes = pairTotal.filter(function (d) {
+          if (d) return d;
+        });
+
+        //console.log(sliceTotalVotes);
+        //console.log(arrayMax(pairTotal));
+        //console.log(Math.max.apply(null ,sliceTotalVotes));
+        rScale.domain([0, Math.max.apply(null, sliceTotalVotes)]).range([0, 5]);
+
+        var dataT = topojson.feature(us, us.objects.counties).features;
+
         svg
           .append("g")
           .attr("class", "county")
           .selectAll("path")
-          .data(topojson.feature(us, us.objects.counties).features)
+          .data(dataT)
           .enter()
           .append("path")
           .attr("d", path)
           .style("fill", function (d) {
             //console.log(d.geometry);
-            pairCentroidWithId[d.id] = path.centroid(d);
+            //pairCentroidWithId[d.id] = path.centroid(d);
             //console.log(pairCentroidWithId[d.id]);
-            return color(1); //pairDiffWithId[d.id]);
+            return "#dcdcdc"; //color(pairNameWithId[d.id]); //pairDiffWithId[d.id]);
           });
 
         svg
-          .selectAll("path")
+          .selectAll("circle")
+          .data(dataT)
+          .enter()
           .append("circle")
-          .attr("c", circle)
-          .attr("r", 5)
+          .attr("class", "county-circle")
           .attr("cx", function selection(d) {
             if (path.centroid(d)[0]) return path.centroid(d)[0];
           })
           .attr("cy", function selection(d) {
-            if (path.centroid(d)[0]) return path.centroid(d)[1];
+            if (path.centroid(d)[1]) return path.centroid(d)[1];
+          })
+          .attr("r", function selection(d) {
+            if (pairTotal[d.id]) {
+              //console.log(rScale(pairTotal[d.id]))
+              return Math.sqrt(pairTotal[d.id] * 0.001);
+            }
+          })
+          .attr("id", function selection(d) {
+            if (d.id) return d.id;
           })
           .style("fill", function (d) {
             //console.log(d.geometry);
             //pairCentroidWithId[d.id] = path.centroid(d);
-            //console.log(pairCentroidWithId[d.id]);
-            return color(pairNameWithId[d.id]); //pairDiffWithId[d.id]);
+            //console.log(color(pairPDiff[d.id]));
+            return "#" + color(pairPDiff[d.id]); //pairDiffWithId[d.id]);
           })
-          .style("opacity", 1);
+          .style("opacity", 0.7);
 
-        /*
+        svg
+          .selectAll("circle")
           .style("opacity", 0.8)
           .on("mouseover", function (d) {
             var sel = d3.select(this);
@@ -227,7 +287,11 @@
               .style({ opacity: 1, stroke: "black", "stroke-width": 1.5 });
             div.transition().duration(300).style("opacity", 1);
             div
-              .text(pairNameWithId[d.id] + ": " + pairDiffWithId[d.id])
+              .text(
+                pairNameWithId[d.id] +
+                  ": " +
+                  won(pairPDiff[d.id], pairPerDem[d.id], pairPerGop[d.id])
+              )
               .style("left", d3.event.pageX + "px")
               .style("top", d3.event.pageY - 30 + "px");
           })
@@ -240,54 +304,8 @@
               .style({ opacity: 0.8, stroke: "white", "stroke-width": 1 });
             div.transition().duration(300).style("opacity", 0);
           });
-          */
       }
 
-      // //legend ################################################################
-      // //#######################################################################
-      // var legend = svg
-      //   .selectAll("g.legend")
-      //   .data(ext_color_domain)
-      //   .enter()
-      //   .append("g")
-      //   .attr("class", "legend");
-
-      // var ls_w = 73,
-      //   ls_h = 20;
-
-      // legend
-      //   .append("rect")
-      //   .attr("x", function (d, i) {
-      //     return width - i * ls_w - ls_w;
-      //   })
-      //   .attr("y", 550)
-      //   .attr("width", ls_w)
-      //   .attr("height", ls_h)
-      //   .style("fill", function (d, i) {
-      //     return color(d);
-      //   })
-      //   .style("opacity", 0.8);
-
-      // legend
-      //   .append("text")
-      //   .attr("x", function (d, i) {
-      //     return width - i * ls_w - ls_w;
-      //   })
-      //   .attr("y", 590)
-      //   .text(function (d, i) {
-      //     return legend_labels[i];
-      //   });
-
-      // var legend_title = "Number of independent farms";
-
-      // svg
-      //   .append("text")
-      //   .attr("x", 10)
-      //   .attr("y", 540)
-      //   .attr("class", "legend_title")
-      //   .text(function () {
-      //     return legend_title;
-      //   });
     </script>
 
     <p>Source: U.S. Census</p>
