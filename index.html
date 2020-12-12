@@ -200,7 +200,7 @@
           });
         };
 
-        //Moves selction to back
+        //Moves selction to 
         d3.selection.prototype.moveToBack = function () {
           return this.each(function () {
             var firstChild = this.parentNode.firstChild;
@@ -297,7 +297,7 @@
           })
           .on("mouseout", function () {
             var sel = d3.select(this);
-            sel.moveToBack();
+            //sel.moveToBack();
             d3.select(this)
               .transition()
               .duration(300)
