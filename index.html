@@ -12,6 +12,7 @@
       type="text/javascript"
       src="https://d3js.org/topojson.v1.min.js"
     ></script>
+    <script src="jquery.js"></script>
   </head>
 
   <!-- CSS -->
@@ -45,7 +46,7 @@
       position: absolute;
       left: 75px;
       text-align: center;
-      height: 16px;
+      height: 34px;
       padding: 10px;
       font-size: 14px;
       background: #ffffff;
@@ -62,6 +63,76 @@
     @media (max-width: 800px) {
       .d3map {
         display: none;
+      }
+    }
+
+    /* The snackbar - position it at the bottom and in the middle of the screen */
+    #snackbar {
+      visibility: hidden; /* Hidden by default. Visible on click */
+      min-width: 250px; /* Set a default minimum width */
+      margin-left: -125px; /* Divide value of min-width by 2 */
+      background-color: #333; /* Black background color */
+      color: #fff; /* White text color */
+      text-align: center; /* Centered text */
+      border-radius: 2px; /* Rounded borders */
+      padding: 16px; /* Padding */
+      position: fixed; /* Sit on top of the screen */
+      z-index: 1; /* Add a z-index if needed */
+      left: 20%; /* Center the snackbar */
+      top: 550px; /* 30px from the bottom */
+    }
+
+    /* Show the snackbar when clicking on a button (class added with JavaScript) */
+    #snackbar.show {
+      visibility: visible; /* Show the snackbar */
+      /* Add animation: Take 0.5 seconds to fade in and out the snackbar.
+  However, delay the fade out process for 2.5 seconds */
+      -webkit-animation: fadein 0.5s, fadeout 0.5s 2.5s;
+      animation: fadein 0.5s, fadeout 0.5s 2.5s;
+    }
+
+    /* Animations to fade the snackbar in and out */
+    @-webkit-keyframes fadein {
+      from {
+        top: 500px; /* 30px from the bottom */
+        opacity: 0;
+      }
+      to {
+        top: 550px; /* 30px from the bottom */
+        opacity: 1;
+      }
+    }
+
+    @keyframes fadein {
+      from {
+        bottom: 500;
+        opacity: 0;
+      }
+      to {
+        top: 550px; /* 30px from the bottom */
+        opacity: 1;
+      }
+    }
+
+    @-webkit-keyframes fadeout {
+      from {
+        top: 550px; /* 30px from the bottom */
+        opacity: 1;
+      }
+      to {
+        bottom: 500;
+        opacity: 0;
+      }
+    }
+
+    @keyframes fadeout {
+      from {
+        bottom: 550px;
+        opacity: 1;
+      }
+      to {
+        bottom: 500;
+        opacity: 0;
       }
     }
   </style>
@@ -167,6 +238,7 @@
         .select("body")
         .append("div")
         .attr("class", "tooltip")
+        .attr("id", "tool_tip")
         .style("opacity", 0);
 
       var svg = d3
@@ -200,7 +272,7 @@
           });
         };
 
-        //Moves selction to 
+        //Moves selction to back
         d3.selection.prototype.moveToBack = function () {
           return this.each(function () {
             var firstChild = this.parentNode.firstChild;
@@ -289,11 +361,37 @@
             div
               .text(
                 pairNameWithId[d.id] +
-                  ": " +
+                  " " +
                   won(pairPDiff[d.id], pairPerDem[d.id], pairPerGop[d.id])
               )
               .style("left", d3.event.pageX + "px")
-              .style("top", d3.event.pageY - 30 + "px");
+              .style("top", d3.event.pageY - 30 + "px")
+              .attr(
+                "info",
+                pairNameWithId[d.id] +
+                  "<br>" +
+                  won(pairPDiff[d.id], pairPerDem[d.id], pairPerGop[d.id]) +
+                  "<br> Total votes in county: " +
+                  pairTotal[d.id]
+              );
+            //"Total votes in county: " + pairTotal[d.id]
+
+            // Get the snackbar DIV
+            var x = document.getElementById("snackbar");
+
+            // Add the "show" class to DIV
+            x.className = "show";
+
+            x.innerHTML = document
+              .querySelector("#tool_tip")
+              .getAttribute("info");
+
+            // After 3 seconds, remove the show class from DIV
+            setTimeout(function () {
+              x.className = x.className.replace("show", "");
+            }, 60000);
+
+            console.log(x.innerHTML);
           })
           .on("mouseout", function () {
             var sel = d3.select(this);
@@ -305,9 +403,32 @@
             div.transition().duration(300).style("opacity", 0);
           });
       }
-
     </script>
 
-    <p>Source: U.S. Census</p>
+    <div id="snackbar">Some text some message..</div>
+
+    <svg height="50" width="960">
+      <defs>
+        <linearGradient id="grad3" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop
+            offset="0%"
+            style="stop-color: rgb(0, 26, 255); stop-opacity: 1"
+          />
+          <stop
+            offset="100%"
+            style="stop-color: rgb(255, 0, 0); stop-opacity: 1"
+          />
+        </linearGradient>
+      </defs>
+      <rect width="960" height="50" fill="url(#grad3)" />
+      <text fill="#ffffff" font-size="45" font-family="Verdana" x="50" y="40">
+        Democrat ⬷ ⤛ ⤛ ⤜ ⤜ ⤐ Republican
+      </text>
+    </svg>
+
+    <div position="absolute" width="100%">
+      <iframe src = "data_ugly.html" height="600px" width="100%" ></iframe>
+    </div>
+
   </body>
 </html>
